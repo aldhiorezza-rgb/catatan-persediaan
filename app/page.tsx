@@ -44,7 +44,7 @@ export default function Home() {
   const [categories, setCategories] = useState<KategoriItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [namaPemohon, setNamaPemohon] = useState('');
-  const [unitKerja, setUnitKerja] = useState('');
+  const [unitKerja, setUnitKerja] = useState('Subbagian Umum');
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -182,10 +182,10 @@ export default function Home() {
     }
   };
 
-  // BATALKAN / HAPUS PERMINTAAN (Rollback Stok Otomatis)
+  // BATALKAN / HAPUS PERMINTAAN (Rollback Stok Otomatis & Cerdas)
   const handleBatalDanRollback = async (order: RequestOrder) => {
     const konfirmasi = window.confirm(
-      `Batalkan permintaan dari "${order.nama_pemohon}"? Stok barang akan dikembalikan ke katalog.`
+      `Batalkan permintaan dari "${order.nama_pemohon}"? Stok barang akan dikembalikan ke gudang.`
     );
     if (!konfirmasi) return;
 
@@ -205,7 +205,7 @@ export default function Home() {
       if (Array.isArray(parsedDetail) && parsedDetail.length > 0) {
         itemsToRestore = parsedDetail;
       } else if (order.daftar_barang) {
-        // 2. Fallback: Parse dari string teks jika JSON kosong (contoh: "Tisu (1 pcs), Spidol (2 pcs)")
+        // 2. Fallback: Parse dari teks jika JSON kosong (cth: "Tisu (1 pcs), Spidol (2 pcs)")
         const parts = order.daftar_barang.split(',');
         for (const part of parts) {
           const match = part.match(/(.*?)\s*\(\s*(\d+)/);
@@ -248,9 +248,7 @@ export default function Home() {
 
       if (delError) throw delError;
 
-      alert('Permintaan berhasil dibatalkan dan stok telah bertambah kembali ke katalog!');
-      
-      // Ambil data terbaru untuk me-refresh tampilan katalog & tabel rekap
+      alert('Permintaan berhasil dibatalkan dan kuantitas stok telah dikembalikan ke katalog!');
       await fetchCategories();
       await fetchRekapPenggunaan();
     } catch (err: any) {
@@ -310,7 +308,7 @@ export default function Home() {
       await supabase.from('request_persediaan').insert([
         {
           nama_pemohon: namaPemohon,
-          unit_kerja: unitKerja || '-',
+          unit_kerja: unitKerja,
           daftar_barang: ringkasan,
           detail_items: cart.map((c) => ({
             id: c.id,
@@ -324,7 +322,7 @@ export default function Home() {
       let rawText = `*PERMINTAAN PERSEDIAAN DAN ATK KPPN ENDE*\n`;
       rawText += `---------------------------------------\n`;
       rawText += `👤 *Nama Pemohon:* ${namaPemohon}\n`;
-      rawText += `🏢 *Seksi / Unit:* ${unitKerja || '-'}\n`;
+      rawText += `🏢 *Seksi / Unit:* ${unitKerja}\n`;
       rawText += `📅 *Tanggal:* ${new Date().toLocaleDateString('id-ID')}\n\n`;
       rawText += `📦 *Daftar Kategori / Barang yang Diminta:*\n`;
 
@@ -339,7 +337,7 @@ export default function Home() {
 
       setCart([]);
       setNamaPemohon('');
-      setUnitKerja('');
+      setUnitKerja('Subbagian Umum');
       fetchCategories();
       fetchRekapPenggunaan();
     } catch (err: any) {
@@ -1002,13 +1000,17 @@ export default function Home() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Seksi / Subbagian</label>
-              <input
-                type="text"
-                placeholder="cth: Subbag Umum / Seksi Bank / Seksi MSKI"
+              <select
                 value={unitKerja}
                 onChange={(e) => setUnitKerja(e.target.value)}
-                className="w-full px-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-              />
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white cursor-pointer"
+                required
+              >
+                <option value="Subbagian Umum">Subbagian Umum</option>
+                <option value="Seksi PDMS">Seksi PDMS</option>
+                <option value="Seksi Bank">Seksi Bank</option>
+                <option value="Seksi VeraKI">Seksi VeraKI</option>
+              </select>
             </div>
 
             <button

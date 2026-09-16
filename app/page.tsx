@@ -185,27 +185,74 @@ export default function Home() {
   // BATALKAN / HAPUS PERMINTAAN (Rollback Stok Otomatis)
   const handleBatalDanRollback = async (order: RequestOrder) => {
     const konfirmasi = window.confirm(
-      `Batalkan permintaan dari "${order.nama_pemohon}"? Stok barang yang tertera akan dikembalikan ke gudang.`
+      `Batalkan permintaan dari "${order.nama_pemohon}"? Stok barang akan dikembalikan ke katalog.`
     );
     if (!konfirmasi) return;
 
     try {
-      if (order.detail_items && Array.isArray(order.detail_items)) {
-        for (const item of order.detail_items) {
-          const target = categories.find((c) => c.id === item.id);
-          const currentQty = target ? target.stok : 0;
-          await supabase
-            .from('stok_barang')
-            .update({ stok: currentQty + item.jumlah })
-            .eq('id', item.id);
+      let itemsToRestore: { id?: number; nama: string; jumlah: number }[] = [];
+
+      // 1. Cek dari detail_items (JSON)
+      let parsedDetail = order.detail_items;
+      if (typeof parsedDetail === 'string') {
+        try {
+          parsedDetail = JSON.parse(parsedDetail);
+        } catch {
+          parsedDetail = undefined;
         }
       }
 
-      await supabase.from('request_persediaan').delete().eq('id', order.id);
+      if (Array.isArray(parsedDetail) && parsedDetail.length > 0) {
+        itemsToRestore = parsedDetail;
+      } else if (order.daftar_barang) {
+        // 2. Fallback: Parse dari string teks jika JSON kosong (contoh: "Tisu (1 pcs), Spidol (2 pcs)")
+        const parts = order.daftar_barang.split(',');
+        for (const part of parts) {
+          const match = part.match(/(.*?)\s*\(\s*(\d+)/);
+          if (match) {
+            const nama = match[1].trim();
+            const jumlah = parseInt(match[2], 10);
+            if (nama && !isNaN(jumlah)) {
+              itemsToRestore.push({ nama, jumlah });
+            }
+          }
+        }
+      }
 
-      alert('Permintaan berhasil dibatalkan dan kuantitas stok telah dikembalikan ke katalog!');
-      fetchCategories();
-      fetchRekapPenggunaan();
+      // 3. Kembalikan stok ke database berdasarkan stok terkini (fresh query)
+      for (const item of itemsToRestore) {
+        let query = supabase.from('stok_barang').select('id, stok, nama_barang');
+        if (item.id) {
+          query = query.eq('id', item.id);
+        } else {
+          query = query.ilike('nama_barang', item.nama);
+        }
+
+        const { data: currentRecords } = await query;
+        if (currentRecords && currentRecords.length > 0) {
+          const targetRecord = currentRecords[0];
+          const newQty = (targetRecord.stok || 0) + item.jumlah;
+
+          await supabase
+            .from('stok_barang')
+            .update({ stok: newQty })
+            .eq('id', targetRecord.id);
+        }
+      }
+
+      // 4. Hapus data pesanan dari riwayat
+      const { error: delError } = await supabase
+        .from('request_persediaan')
+        .delete()
+        .eq('id', order.id);
+
+      if (delError) throw delError;
+
+      alert('Permintaan berhasil dibatalkan dan stok telah bertambah kembali ke katalog!');
+      
+      // Ambil data terbaru untuk me-refresh tampilan katalog & tabel rekap
+      await fetchCategories();
+      await fetchRekapPenggunaan();
     } catch (err: any) {
       alert('Gagal membatalkan transaksi: ' + err.message);
     }

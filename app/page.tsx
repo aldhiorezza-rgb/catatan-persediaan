@@ -203,18 +203,24 @@ export default function Home() {
         },
       ]);
 
-      let pesanWA = `*PERMINTAAN PERSEDIAAN & ATK KPPN ENDE*%0A`;
-      pesanWA += `---------------------------------------%0A`;
-      pesanWA += `👤 *Nama Pemohon:* ${encodeURIComponent(namaPemohon)}%0A`;
-      pesanWA += `🏢 *Seksi / Unit:* ${encodeURIComponent(unitKerja || '-')}%0A`;
-      pesanWA += `📅 *Tanggal:* ${new Date().toLocaleDateString('id-ID')}%0A%0A`;
-      pesanWA += `📦 *Daftar Kategori / Barang yang Diminta:*%0A`;
-      cart.forEach((c, idx) => {
-        pesanWA += `${idx + 1}. *${encodeURIComponent(c.nama)}*: ${c.jumlah} ${encodeURIComponent(c.satuan)}%0A`;
-      });
-      pesanWA += `%0AMohon kesediaannya untuk disiapkan, terima kasih! 🙏`;
+      // 3. Format Pesan WhatsApp (Aman tanpa terpotong &)
+      let rawText = `*PERMINTAAN PERSEDIAAN DAN ATK KPPN ENDE*\n`;
+      rawText += `---------------------------------------\n`;
+      rawText += `👤 *Nama Pemohon:* ${namaPemohon}\n`;
+      rawText += `🏢 *Seksi / Unit:* ${unitKerja || '-'}\n`;
+      rawText += `📅 *Tanggal:* ${new Date().toLocaleDateString('id-ID')}\n\n`;
+      rawText += `📦 *Daftar Barang yang Diminta:*\n`;
 
-      window.open(`https://wa.me/${NO_WA_PIC}?text=${pesanWA}`, '_blank');
+      cart.forEach((c, idx) => {
+        rawText += `${idx + 1}. *${c.nama}*: ${c.jumlah} ${c.satuan}\n`;
+      });
+
+      rawText += `\nMohon kesediaannya untuk disiapkan, terima kasih! 🙏`;
+
+      // Encode seluruh pesan secara utuh
+      const encodedPesan = encodeURIComponent(rawText);
+
+      window.open(`https://api.whatsapp.com/send?phone=${NO_WA_PIC}&text=${encodedPesan}`, '_blank');
 
       setCart([]);
       setNamaPemohon('');
